@@ -1,4 +1,4 @@
-module github.com/shane-novit9/xacml
+module github.com/shane-novit9/hyper-health/xacml
 
 go 1.19
 
