@@ -1,4 +1,4 @@
-package main
+package utils
 
 import (
 	"net/mail"
@@ -21,9 +21,9 @@ func (webU *WebUser) Validate() bool {
 		webU.Errors["Email"] = "Please enter a valid email address"
 	}
 
-	/*if webU.FirstName == "" || webU.LastName == "" {
+	if webU.FirstName == "" || webU.LastName == "" {
 		webU.Errors["Name"] = "First name and last name cannot be empty"
-	}*/
+	}
 
 	if webU.Password != webU.PasswordConfirm {
 		webU.Errors["Password"] = "Passwords do not match, try again"

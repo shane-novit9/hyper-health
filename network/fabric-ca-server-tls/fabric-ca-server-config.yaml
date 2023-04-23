@@ -40,7 +40,7 @@
 version: 1.5.5
 
 # Server's listening port (default: 7054)
-port: 7054
+port: 7059
 
 # Cross-Origin Resource Sharing (CORS)
 cors:
@@ -316,7 +316,7 @@ csr:
    ca:
       expiry: 131400h
       pathlength: 1
-
+ 
 ###########################################################################
 # Each CA can issue both X509 enrollment certificate as well as Idemix
 # Credential. This section specifies configuration for the issuer component

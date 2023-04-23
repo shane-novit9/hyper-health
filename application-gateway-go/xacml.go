@@ -18,12 +18,15 @@ import (
 	"path"
 	"time"
 
+	utils "github.com/shane-novit9/hyper-health/application-gateway-go/utils"
+
 	"github.com/hyperledger/fabric-gateway/pkg/client"
 	"github.com/hyperledger/fabric-gateway/pkg/identity"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
 
+// "google.golang.org/grpc/credentials/insecure"
 type Request struct {
 	Func string   `json:"func"`
 	Args []string `json:"args"`
@@ -51,7 +54,7 @@ const (
 //var now = time.Now()
 
 func main() {
-	log.Println("============ application-golang starts ")
+	log.Println("============ application-golang starts ============")
 
 	// The gRPC client connection should be shared by all Gateway connections to this endpoint
 	clientConnection := newGrpcConnection()
@@ -76,6 +79,10 @@ func main() {
 	}
 	defer gateway.Close()
 
+	//Get the network and smart contract
+	network := gateway.GetNetwork(channelName)
+	contract := network.GetContract(chaincodeName)
+
 	router := http.NewServeMux()
 
 	router.HandleFunc("/hyper-health", displayWebHome)
@@ -85,10 +92,6 @@ func main() {
 		r.ParseForm()
 
 		req := Request{Func: r.FormValue("function")}
-
-		//Get the network and smart contract
-		network := gateway.GetNetwork(channelName)
-		contract := network.GetContract(chaincodeName)
 
 		switch {
 		case req.Func == "InitLedger":
@@ -203,10 +206,10 @@ func registration(w http.ResponseWriter, r *http.Request) {
 		render(w, "templates/Registration.html", nil)
 	case http.MethodPost: // Handle account registration
 		r.ParseForm()
-		webUser := &WebUser{
+		webUser := &utils.WebUser{
 			Email:           r.FormValue("email"),
-			FirstName:       r.FormValue("firstName"),
-			LastName:        r.FormValue("lastName"),
+			FirstName:       r.FormValue("firstname"),
+			LastName:        r.FormValue("lastname"),
 			Password:        r.FormValue("password"),
 			PasswordConfirm: r.FormValue("passconfirm"),
 		}
@@ -214,13 +217,17 @@ func registration(w http.ResponseWriter, r *http.Request) {
 		// Verify account does not exist (AccountDAO)
 
 		// Validate create user form
-		/*if !webUser.Validate() {
+		if !webUser.Validate() {
 			webUser.Errors = make(map[string]string)
 			render(w, "templates/Registration.html", webUser)
-		}*/
+		}
+		// Write Account to DB (AppService, DAO, and Repository)
 
 		// Generate public/private keys
-		MakeSSHKeyPair(pubKeyPath, privKeyPath)
+		err := utils.MakeSSHKeyPair(pubKeyPath, privKeyPath)
+		if err != nil {
+			http.Error(w, "Failed to generate keys", http.StatusInternalServerError)
+		}
 
 		// Redirect to AccountConfirmation.html
 		render(w, "templates/AccountConfirmation.html", webUser)
@@ -230,6 +237,19 @@ func registration(w http.ResponseWriter, r *http.Request) {
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		render(w, "templates/Login.html", nil)
+	case http.MethodPost:
+		r.ParseForm()
+		email := r.FormValue("email")
+		pass := r.FormValue("password")
+
+		log.Printf("Login attempt: %v", email+pass)
+	}
+}
+
+func invoke(w http.ResponseWriter, r *http.Request) {
 
 }
 
