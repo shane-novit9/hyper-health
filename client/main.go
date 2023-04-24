@@ -66,16 +66,24 @@ func generateKeys() {
 func registerIdentity(id string) {
 	generateKeys()
 
-	pubKey, err := utils.GetPublicKeyBlock(pubKeyPath)
+	fmt.Print("\nGetting public key...\n")
+	n, e, err := utils.GetPublicKeyValues(privKeyPath)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	req, err := http.NewRequest(http.MethodPost, "http://localhost:8080/invoke/function=Register", nil)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	req.Header.Add("keybytes", string(pubKey.Bytes))
+	req.Header.Add("n", string(n))
+	req.Header.Add("e", string(e))
 	req.Header.Add("id", id)
 
 	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -89,7 +97,10 @@ func registerIdentity(id string) {
 func createPolicy(id, policy string) {
 	msgStr := id + policy
 	msgBytes := []byte(msgStr)
-	signature := utils.SignTransaction(privKeyPath, msgBytes)
+	signature, err := utils.SignTransaction(privKeyPath, msgBytes)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	req, err := http.NewRequest(http.MethodPost, "http://localhost:8080/invoke/function=CreatePolicy", nil)
 	if err != nil {
@@ -101,6 +112,10 @@ func createPolicy(id, policy string) {
 	req.Header.Add("policy", policy)
 
 	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Fatalln(err)

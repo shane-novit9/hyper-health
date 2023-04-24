@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"math/big"
 	"os"
 
 	"golang.org/x/crypto/ssh"
@@ -42,28 +43,23 @@ func MakeSSHKeyPair(pubKeyPath, privateKeyPath string) error {
 	return os.WriteFile(pubKeyPath, ssh.MarshalAuthorizedKey(pub), 0655)
 }
 
-func GetPublicKey(pubKeyPath string) (*rsa.PublicKey, error) {
-	pubPem, err := GetPublicKeyBlock(pubKeyPath)
-
-	parsedKey, err := x509.ParsePKCS1PublicKey(pubPem.Bytes)
+func GetPublicKeyValues(privateKeyPath string) (*big.Int, int, error) {
+	priv, err := os.ReadFile(privateKeyPath)
 	if err != nil {
-		return nil, fmt.Errorf("error - failed to parse public key")
-	}
-	return parsedKey, nil
-}
-
-func GetPublicKeyBlock(pubKeyPath string) (*pem.Block, error) {
-	pub, err := os.ReadFile(pubKeyPath)
-	if err != nil {
-		return nil, err
+		return nil, -1, err
 	}
 
-	pubPem, _ := pem.Decode(pub)
+	pubPem, _ := ssh.Decode(priv)
 	if pubPem == nil {
-		return nil, fmt.Errorf("error - failed to decode key")
+		return nil, -1, fmt.Errorf("error - failed to decode key")
+	}
+	rsaPrivateKey, err := x509.ParsePKCS1PrivateKey(pubPem.Bytes)
+	if err != nil {
+		return nil, -1, err
 	}
 
-	return pubPem, nil
+	public := rsaPrivateKey.PublicKey
+	return public.N, public.E, nil
 }
 
 func SignTransaction(privKeyPath string, msg []byte) ([]byte, error) {
