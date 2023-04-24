@@ -49,7 +49,7 @@ func GetPublicKeyValues(privateKeyPath string) (*big.Int, int, error) {
 		return nil, -1, err
 	}
 
-	pubPem, _ := ssh.Decode(priv)
+	pubPem, _ := pem.Decode(priv)
 	if pubPem == nil {
 		return nil, -1, fmt.Errorf("error - failed to decode key")
 	}
@@ -59,6 +59,7 @@ func GetPublicKeyValues(privateKeyPath string) (*big.Int, int, error) {
 	}
 
 	public := rsaPrivateKey.PublicKey
+	fmt.Println(public)
 	return public.N, public.E, nil
 }
 
