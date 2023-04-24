@@ -94,16 +94,20 @@ func main() {
 		req := Request{Func: r.FormValue("function")}
 
 		switch {
+		case req.Func == "Register":
+			pubBytes := r.Header.Get("keybytes")
+			id := r.Header.Get("id")
+			registerIdentity(contract, w, []byte(pubBytes), id)
 		case req.Func == "InitLedger":
 			initLedger(contract, w)
 		case req.Func == "ReadPolicy":
 			id := r.FormValue("patientId")
 			readPolicy(contract, w, id)
 		case req.Func == "CreatePolicy":
-			id := r.FormValue("patientId")
-			log.Println(id)
-			xacmlPolicy := r.FormValue("xacmlPolicy")
-			createPolicy(contract, id, xacmlPolicy)
+			id := r.Header.Get("id")
+			xacmlPolicy := r.Header.Get("policy")
+			signature := []byte(r.Header.Get("signature"))
+			createPolicy(contract, id, xacmlPolicy, signature)
 		case req.Func == "UpdatePolicy":
 			id := r.FormValue("patientId")
 			xacmlPolicy := r.FormValue("xacmlPolicy")
@@ -253,6 +257,13 @@ func invoke(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func registerIdentity(contract *client.Contract, w http.ResponseWriter, bytes []byte, id string) {
+	result, err := contract.SubmitTransaction("Register", bytes, id)
+	if err != nil {
+		panic(fmt.Errorf("failed to submit transaction: %w", err))
+	}
+}
+
 // This type of transaction would typically only be run once by an application the first time it was started after its
 // initial deployment. A new version of the chaincode deployed later would likely not need to run an "init" function.
 func initLedger(contract *client.Contract, w http.ResponseWriter) {
@@ -300,10 +311,10 @@ func readPolicy(contract *client.Contract, w http.ResponseWriter, id string) {
 }
 
 // Submit a transaction synchronously, blocking until it has been committed to the ledger.
-func createPolicy(contract *client.Contract, id, policy string) {
+func createPolicy(contract *client.Contract, id, policy string, signature []byte) {
 	fmt.Printf("Submit Transaction: CreatePolicy, intended for adding a new Patient's Record Access Policy \n")
 
-	_, err := contract.SubmitTransaction("CreatePolicy", id, policy)
+	_, err := contract.SubmitTransaction("CreatePolicy", id, policy, signature)
 	if err != nil {
 		panic(fmt.Errorf("failed to submit transaction: %w", err))
 	}
