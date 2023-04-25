@@ -13,14 +13,12 @@ import (
 	"fmt"
 	"html/template"
 	"log"
-	"math/big"
 	"net/http"
 	"os"
 	"path"
-	"strconv"
 	"time"
 
-	utils "github.com/shane-novit9/hyper-health/application-gateway-go/utils"
+	utils "github.com/shane-novit9/hyper-health/utils"
 
 	"github.com/hyperledger/fabric-gateway/pkg/client"
 	"github.com/hyperledger/fabric-gateway/pkg/identity"
@@ -101,6 +99,9 @@ func main() {
 			e := r.Header.Get("e")
 			id := r.Header.Get("id")
 			registerIdentity(contract, w, n, e, id)
+		case req.Func == "GetPub":
+			id := r.Header.Get("id")
+			getPublicKey(contract, w, id)
 		case req.Func == "InitLedger":
 			initLedger(contract, w)
 		case req.Func == "ReadPolicy":
@@ -109,7 +110,7 @@ func main() {
 		case req.Func == "CreatePolicy":
 			id := r.Header.Get("id")
 			xacmlPolicy := r.Header.Get("policy")
-			signature := []byte(r.Header.Get("signature"))
+			signature := r.Header.Get("signature")
 			createPolicy(contract, id, xacmlPolicy, signature)
 		case req.Func == "UpdatePolicy":
 			id := r.FormValue("patientId")
@@ -256,26 +257,20 @@ func login(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func invoke(w http.ResponseWriter, r *http.Request) {
-
-}
-
 func registerIdentity(contract *client.Contract, w http.ResponseWriter, n, e, id string) {
-	nBig := new(big.Int)
-	nBig, ok := nBig.SetString(n, 10)
-	if !ok {
-		panic(fmt.Errorf("SetString: error"))
-		return
-	}
-	eInt, err := strconv.Atoi(e)
-	if err != nil {
-		panic(fmt.Errorf("String conversion error: %w", err))
-	}
-
-	result, err := contract.SubmitTransaction("Register", id, nBig, eInt)
+	result, err := contract.SubmitTransaction("Register", id, n, e)
 	if err != nil {
 		panic(fmt.Errorf("failed to submit transaction: %w", err))
 	}
+	fmt.Println(result)
+}
+
+func getPublicKey(contract *client.Contract, w http.ResponseWriter, id string) {
+	result, err := contract.EvaluateTransaction("GetRSAPublicKey", id)
+	if err != nil {
+		panic(fmt.Errorf("failed to submit transaction: %w", err))
+	}
+	fmt.Printf("\n%#v\n", result)
 }
 
 // This type of transaction would typically only be run once by an application the first time it was started after its
@@ -325,7 +320,7 @@ func readPolicy(contract *client.Contract, w http.ResponseWriter, id string) {
 }
 
 // Submit a transaction synchronously, blocking until it has been committed to the ledger.
-func createPolicy(contract *client.Contract, id, policy string, signature []byte) {
+func createPolicy(contract *client.Contract, id, policy string, signature string) {
 	fmt.Printf("Submit Transaction: CreatePolicy, intended for adding a new Patient's Record Access Policy \n")
 
 	_, err := contract.SubmitTransaction("CreatePolicy", id, policy, signature)

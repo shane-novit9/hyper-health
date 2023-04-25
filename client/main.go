@@ -29,32 +29,14 @@ func main() {
 	fmt.Printf("\nCommand: %s\n", *command)
 
 	switch {
-	case *command == "InitLedger":
-		initLedger()
 	case *command == "Register":
 		registerIdentity(*id)
+	case *command == "PublicKey":
+		getPub(*id)
 	case *command == "CreatePolicy":
 		createPolicy(*id, *policy)
 	}
 
-}
-
-func initLedger() {
-	reqURL := fmt.Sprintf("http://localhost:%d/invoke/function=InitLedger", serverPort)
-	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	sb := string(body)
-	fmt.Print(sb)
 }
 
 func generateKeys() {
@@ -71,7 +53,7 @@ func registerIdentity(id string) {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	fmt.Printf("Key: %#v", pub)
+	fmt.Printf("Key: %#v\n", pub)
 
 	req, err := http.NewRequest(http.MethodPost, "http://localhost:8080/invoke/function=Register", nil)
 	if err != nil {
@@ -92,6 +74,27 @@ func registerIdentity(id string) {
 		log.Fatalln(err)
 	}
 
+	sb := string(body)
+	fmt.Println(sb)
+}
+
+func getPub(id string) {
+	req, err := http.NewRequest(http.MethodGet, "http://localhost:8080/invoke/function=GetPub", nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	req.Header.Add("id", id)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	sb := string(body)
 	fmt.Println(sb)
 }
