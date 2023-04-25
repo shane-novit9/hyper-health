@@ -13,9 +13,11 @@ import (
 	"fmt"
 	"html/template"
 	"log"
+	"math/big"
 	"net/http"
 	"os"
 	"path"
+	"strconv"
 	"time"
 
 	utils "github.com/shane-novit9/hyper-health/application-gateway-go/utils"
@@ -95,9 +97,10 @@ func main() {
 
 		switch {
 		case req.Func == "Register":
-			pubBytes := r.Header.Get("keybytes")
+			n := r.Header.Get("n")
+			e := r.Header.Get("e")
 			id := r.Header.Get("id")
-			registerIdentity(contract, w, []byte(pubBytes), id)
+			registerIdentity(contract, w, n, e, id)
 		case req.Func == "InitLedger":
 			initLedger(contract, w)
 		case req.Func == "ReadPolicy":
@@ -257,8 +260,19 @@ func invoke(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func registerIdentity(contract *client.Contract, w http.ResponseWriter, bytes []byte, id string) {
-	result, err := contract.SubmitTransaction("Register", bytes, id)
+func registerIdentity(contract *client.Contract, w http.ResponseWriter, n, e, id string) {
+	nBig := new(big.Int)
+	nBig, ok := nBig.SetString(n, 10)
+	if !ok {
+		panic(fmt.Errorf("SetString: error"))
+		return
+	}
+	eInt, err := strconv.Atoi(e)
+	if err != nil {
+		panic(fmt.Errorf("String conversion error: %w", err))
+	}
+
+	result, err := contract.SubmitTransaction("Register", id, nBig, eInt)
 	if err != nil {
 		panic(fmt.Errorf("failed to submit transaction: %w", err))
 	}

@@ -26,7 +26,7 @@ func main() {
 	policy := flag.String("policy", "", "Enter your records access policy.")
 	//request := flag.String("request", "", "Enter your record request.")
 	flag.Parse()
-	fmt.Printf("Command: %s\n", *command)
+	fmt.Printf("\nCommand: %s\n", *command)
 
 	switch {
 	case *command == "InitLedger":
@@ -67,17 +67,19 @@ func registerIdentity(id string) {
 	generateKeys()
 
 	fmt.Print("\nGetting public key...\n")
-	n, e, err := utils.GetPublicKeyValues(privKeyPath)
+	pub, err := utils.GetPublicKey(privKeyPath)
 	if err != nil {
 		log.Fatalln(err)
 	}
+	fmt.Printf("Key: %#v", pub)
+
 	req, err := http.NewRequest(http.MethodPost, "http://localhost:8080/invoke/function=Register", nil)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	req.Header.Add("n", string(n))
-	req.Header.Add("e", string(e))
+	req.Header.Add("n", pub.N.String())
+	req.Header.Add("e", string(pub.E))
 	req.Header.Add("id", id)
 
 	resp, err := http.DefaultClient.Do(req)
