@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
+	"log"
 	"os"
 
 	"golang.org/x/crypto/ssh"
@@ -58,6 +59,7 @@ func GetPublicKey(privKeyPath string) (*rsa.PublicKey, error) {
 
 func SignTransaction(privKeyPath string, msg []byte) ([]byte, error) {
 	hashed := sha256.Sum256(msg)
+	log.Printf("\nhash: %#v\n", hashed)
 
 	pemBytes, err := os.ReadFile(privKeyPath)
 	if err != nil {
