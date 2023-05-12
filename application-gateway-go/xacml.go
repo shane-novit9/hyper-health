@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,8 +22,6 @@ import (
 	"path"
 	"time"
 
-	utils "github.com/shane-novit9/hyper-health/utils"
-
 	"github.com/hyperledger/fabric-gateway/pkg/client"
 	"github.com/hyperledger/fabric-gateway/pkg/identity"
 	"google.golang.org/grpc"
@@ -30,7 +29,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// "google.golang.org/grpc/credentials/insecure"
 type Request struct {
 	Func string   `json:"func"`
 	Args []string `json:"args"`
@@ -89,118 +87,65 @@ func main() {
 
 	router := http.NewServeMux()
 
-	router.HandleFunc("/hyper-health", displayWebHome)
-	router.HandleFunc("/register", registration)
-	router.HandleFunc("/login", login)
 	router.HandleFunc("/invoke", func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 		r.ParseForm()
 		req := Request{Func: r.FormValue("function")}
-		signature, _ := io.ReadAll(r.Body)
-
-		log.Printf("sign: %v\n\n", string(signature))
-		log.Printf("sign: %v\n\n", signature)
 
 		switch {
-		case req.Func == "InitLedger":
-			initLedger(contract, w)
 		case req.Func == "Register":
 			n := r.Header.Get("n")
 			e := r.Header.Get("e")
 			id := r.Header.Get("id")
-			fmt.Printf("\nN: %v\nE: %v\nID:%v\n", n, e, id)
 			registerIdentity(contract, w, n, e, id)
-		case req.Func == "GetPub":
-			id := r.Header.Get("id")
-			getPublicKey(contract, w, id)
-		case req.Func == "InitLedger":
-			initLedger(contract, w)
 		case req.Func == "ReadPolicy":
-			id := r.FormValue("patientId")
+			id := r.Header.Get("id")
 			readPolicy(contract, w, id)
 		case req.Func == "CreatePolicy":
+			policy, err := io.ReadAll(r.Body)
+			if err != nil {
+				log.Fatal(err)
+			}
 			id := r.Header.Get("id")
-			xacmlPolicy := `<?xml version="1.0" encoding="UTF-8"?>
-			<Policy xmlns="urn:oasis:names:tc:xacml:3.0:core:schema:wd-17" 
-					xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
-					xsi:schemaLocation="urn:oasis:names:tc:xacml:3.0:core:schema:wd-17 http://docs.oasis-open.org/xacml/3.0/xacml-core-v3-schema-wd-17.xsd" 
-					PolicyId="simple-policy" 
-					Version="1.0" 
-					RuleCombiningAlgId="urn:oasis:names:tc:xacml:3.0:rule-combining-algorithm:deny-overrides">
-				<Description>Patient Policy</Description>
-				<Target>
-				  <AnyOf>
-					<AllOf>
-					  <Match MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-						<AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">
-						  ^/record.txt</AttributeValue>
-						<AttributeDesignator
-						  MustBePresent="false"
-						  Category="urn:oasis:names:tc:xacml:3.0:attribute-category:resource"
-						  AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" 
-						  DataType="http://www.w3.org/2001/XMLSchema#string"/>
-					  </Match>
-					</AllOf>
-				  </AnyOf>
-				</Target>
-				<Rule
-				  RuleId="urn:oasis:names:tc:xacml:3.0:example:SimpleRule"
-				  Effect="Deny">
-				  <Description>
-					  Deny record access 
-				  </Description>
-				  <Target>
-					<AnyOf>
-					  <AllOf>
-						<Match
-						  MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-						  <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">
-							Carl</AttributeValue>
-						  <AttributeDesignator
-							MustBePresent="false"
-							Category="urn:oasis:names:tc:xacml:1.0:subject-category:access-subject"
-							AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-id"
-							DataType="http://www.w3.org/2001/XMLSchema#string"/>
-						</Match>
-						<Match
-						  MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-						  <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">
-							read</AttributeValue>
-						  <AttributeDesignator
-							MustBePresent="false"
-							Category="urn:oasis:names:tc:xacml:1.0:attribute-category:action"
-							AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id"
-							DataType="http://www.w3.org/2001/XMLSchema#string"/>
-						</Match>
-					  </AllOf>
-					</AnyOf>
-				  </Target>
-				</Rule>
-			</Policy>` //r.Header.Get("policy")
-			createPolicy(contract, w, id, xacmlPolicy, signature)
+			signature, _ := base64.StdEncoding.DecodeString(r.Header.Get("signature"))
+			createPolicy(contract, w, id, string(policy), signature)
 		case req.Func == "UpdatePolicy":
-			id := r.FormValue("patientId")
-			xacmlPolicy := r.FormValue("xacmlPolicy")
-			updatePolicy(contract, id, xacmlPolicy)
+			policy, err := io.ReadAll(r.Body)
+			if err != nil {
+				log.Fatal(err)
+			}
+			id := r.Header.Get("id")
+			signature, _ := base64.StdEncoding.DecodeString(r.Header.Get("signature"))
+			updatePolicy(contract, w, id, string(policy), signature)
 		case req.Func == "RequestRecord":
-			patient := r.FormValue("patientId")
-			provider := r.FormValue("providerId")
-			request := r.FormValue("xacmlRequest")
-			requestRecord(contract, w, patient, provider, request)
+			request, err := io.ReadAll(r.Body)
+			if err != nil {
+				log.Fatal(err)
+			}
+			patient := r.Header.Get("pid")
+			provider := r.Header.Get("id")
+			signature, _ := base64.StdEncoding.DecodeString(r.Header.Get("signature"))
+			requestRecord(contract, w, patient, provider, string(request), signature)
 		case req.Func == "GetAllPatientRequests":
-			patientId := r.FormValue("patientId")
-			getAllPatientRequests(contract, w, patientId)
+			patientId := r.Header.Get("id")
+			signature, _ := base64.StdEncoding.DecodeString(r.Header.Get("signature"))
+			getAllPatientRequests(contract, w, patientId, signature)
+		case req.Func == "GetAllProviderRequests":
+			id := r.Header.Get("id")
+			pid := r.Header.Get("pid")
+			signature, _ := base64.StdEncoding.DecodeString(r.Header.Get("signature"))
+			getAllProviderRequests(contract, w, id, pid, signature)
 		case req.Func == "ReadResponse":
-			requestId := r.FormValue("requestId")
-			readResponse(contract, w, requestId)
+			id := r.Header.Get("id")
+			requestId := r.Header.Get("rid")
+			signature, _ := base64.StdEncoding.DecodeString(r.Header.Get("signature"))
+			readResponse(contract, w, requestId, id, signature)
 		}
 	})
 
 	if err := http.ListenAndServe(":8080", router); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
-
-	log.Println("============ application-golang ends ============")
 }
 
 // newGrpcConnection creates a gRPC connection to the Gateway server.
@@ -270,61 +215,8 @@ func newSign() identity.Sign {
 	return sign
 }
 
-func displayWebHome(w http.ResponseWriter, r *http.Request) {
-	render(w, "templates/SystemHomepage.html", nil)
-}
-
-func registration(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		render(w, "templates/Registration.html", nil)
-	case http.MethodPost: // Handle account registration
-		r.ParseForm()
-		webUser := &utils.WebUser{
-			Email:           r.FormValue("email"),
-			FirstName:       r.FormValue("firstname"),
-			LastName:        r.FormValue("lastname"),
-			Password:        r.FormValue("password"),
-			PasswordConfirm: r.FormValue("passconfirm"),
-		}
-
-		// Verify account does not exist (AccountDAO)
-
-		// Validate create user form
-		if !webUser.Validate() {
-			webUser.Errors = make(map[string]string)
-			render(w, "templates/Registration.html", webUser)
-		}
-		// Write Account to DB (AppService, DAO, and Repository)
-
-		// Generate public/private keys
-		err := utils.MakeSSHKeyPair(pubKeyPath, privKeyPath)
-		if err != nil {
-			http.Error(w, "Failed to generate keys", http.StatusInternalServerError)
-		}
-
-		// Redirect to AccountConfirmation.html
-		render(w, "templates/AccountConfirmation.html", webUser)
-	default:
-		http.Error(w, "Not an acceptable method", http.StatusMethodNotAllowed)
-	}
-}
-
-func login(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		render(w, "templates/Login.html", nil)
-	case http.MethodPost:
-		r.ParseForm()
-		email := r.FormValue("email")
-		pass := r.FormValue("password")
-
-		log.Printf("Login attempt: %v", email+pass)
-	}
-}
-
 func registerIdentity(contract *client.Contract, w http.ResponseWriter, n, e, id string) {
-	result, err := contract.SubmitTransaction("Register", id, n, e)
+	_, err := contract.SubmitTransaction("Register", id, n, e)
 	if err != nil {
 		switch err := err.(type) {
 		case *client.EndorseError:
@@ -348,28 +240,7 @@ func registerIdentity(contract *client.Contract, w http.ResponseWriter, n, e, id
 		panic(fmt.Errorf("failed to submit transaction: %w", err))
 	}
 	resp := Response{
-		Result: string(result),
-		Error:  "",
-	}
-	responseJSON, err := json.Marshal(resp)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	if _, err := w.Write(responseJSON); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-}
-
-func getPublicKey(contract *client.Contract, w http.ResponseWriter, id string) {
-	result, err := contract.EvaluateTransaction("GetPublicKey", id)
-	if err != nil {
-		panic(fmt.Errorf("failed to submit transaction: %w", err))
-	}
-	resp := Response{
-		Result: string(result),
+		Result: "Registration successful, welcome!",
 		Error:  "",
 	}
 	responseJSON, err := json.Marshal(resp)
@@ -407,39 +278,16 @@ func readPolicy(contract *client.Contract, w http.ResponseWriter, id string) {
 	}
 }
 
-// This type of transaction would typically only be run once by an application the first time it was started after its
-// initial deployment. A new version of the chaincode deployed later would likely not need to run an "init" function.
-func initLedger(contract *client.Contract, w http.ResponseWriter) {
-	fmt.Printf("Submit Transaction: InitLedger, function creates the initial set of assets on the ledger \n")
-
-	result, err := contract.SubmitTransaction("InitLedger")
-	if err != nil {
-		panic(fmt.Errorf("failed to submit transaction: %w", err))
-	}
-
-	resp := Response{Result: string(result)}
-	responseJSON, err := json.Marshal(resp)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	if _, err := w.Write(responseJSON); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-}
-
 // Submit a transaction synchronously, blocking until it has been committed to the ledger.
 func createPolicy(contract *client.Contract, w http.ResponseWriter, id, policy string, signature []byte) {
 	fmt.Printf("Submit Transaction: CreatePolicy, intended for adding a new Patient's Record Access Policy \n")
 
-	result, err := contract.SubmitTransaction("CreatePolicy", id, policy, string(signature))
+	_, err := contract.SubmitTransaction("CreatePolicy", id, policy, string(signature))
 	if err != nil {
 		panic(fmt.Errorf("failed to submit transaction: %w", err))
 	}
 
-	resp := Response{Result: string(result)}
+	resp := Response{Result: "Policy created."}
 	responseJSON, err := json.Marshal(resp)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -453,21 +301,30 @@ func createPolicy(contract *client.Contract, w http.ResponseWriter, id, policy s
 }
 
 // Evaluate a transaction by assetID to query ledger state.
-func updatePolicy(contract *client.Contract, id, policy string) {
+func updatePolicy(contract *client.Contract, w http.ResponseWriter, id, policy string, signature []byte) {
 	fmt.Printf("Evaluate Transaction: ReadAsset, function returns asset attributes\n")
 
-	_, err := contract.SubmitTransaction("UpdatePolicy", id, policy)
+	_, err := contract.SubmitTransaction("UpdatePolicy", id, policy, string(signature))
 	if err != nil {
 		panic(fmt.Errorf("failed to evaluate transaction: %w", err))
 	}
 
-	fmt.Printf("*** Transaction committed successfully\n")
+	resp := Response{Result: "Policy updated."}
+	responseJSON, err := json.Marshal(resp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if _, err := w.Write(responseJSON); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
-func requestRecord(contract *client.Contract, w http.ResponseWriter, patientId, providerId, request string) {
-	fmt.Printf("Evaluate Transaction: RequestRecord, function requests a response from the channel's XACML Policy Decision Point")
-
-	response, err := contract.SubmitTransaction("RequestRecord", patientId, providerId, request)
+func requestRecord(contract *client.Contract, w http.ResponseWriter, patientId, providerId, request string, signature []byte) {
+	fmt.Printf("Evaluate Transaction: RequestRecord, function requests a response from the channel's XACML Policy Decision Point\n")
+	response, err := contract.SubmitTransaction("RequestRecord", patientId, providerId, request, string(signature))
 	if err != nil {
 		switch err := err.(type) {
 		case *client.EndorseError:
@@ -506,12 +363,11 @@ func requestRecord(contract *client.Contract, w http.ResponseWriter, patientId, 
 	}
 }
 
-func getAllPatientRequests(contract *client.Contract, w http.ResponseWriter, patientId string) {
-	response, err := contract.EvaluateTransaction("GetAllPatientRequests", patientId)
+func getAllPatientRequests(contract *client.Contract, w http.ResponseWriter, patientId string, signature []byte) {
+	response, err := contract.EvaluateTransaction("GetAllPatientRequests", patientId, string(signature))
 	if err != nil {
 		panic(fmt.Errorf("failed to evaluate transaction: %w", err))
 	}
-	fmt.Printf("Requests: %+v\n", response)
 	result := formatJSON(response)
 	resp := Response{
 		Result: string(result),
@@ -529,8 +385,30 @@ func getAllPatientRequests(contract *client.Contract, w http.ResponseWriter, pat
 	}
 }
 
-func readResponse(contract *client.Contract, w http.ResponseWriter, requestId string) {
-	response, err := contract.EvaluateTransaction("ReadResponce", requestId)
+func getAllProviderRequests(contract *client.Contract, w http.ResponseWriter, id, providerId string, signature []byte) {
+	response, err := contract.EvaluateTransaction("GetAllProviderRequests", id, providerId, string(signature))
+	if err != nil {
+		panic(fmt.Errorf("failed to evaluate transaction: %w", err))
+	}
+	result := formatJSON(response)
+	resp := Response{
+		Result: string(result),
+		Error:  "",
+	}
+	json, err := json.Marshal(resp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if _, err := w.Write(json); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func readResponse(contract *client.Contract, w http.ResponseWriter, requestId, id string, signature []byte) {
+	response, err := contract.EvaluateTransaction("ReadResponce", requestId, id, string(signature))
 	if err != nil {
 		panic(fmt.Errorf("failed to evaluate transaction: %w", err))
 	}
@@ -551,61 +429,6 @@ func readResponse(contract *client.Contract, w http.ResponseWriter, requestId st
 		return
 	}
 }
-
-// Submit transaction asynchronously, blocking until the transaction has been sent to the orderer, and allowing
-// this thread to process the chaincode response (e.g. update a UI) without waiting for the commit notification
-/*func transferAssetAsync(contract *client.Contract) {
-	fmt.Printf("Async Submit Transaction: TransferAsset, updates existing asset owner'\n")
-
-	submitResult, commit, err := contract.SubmitAsync("TransferAsset", client.WithArguments(assetId, "Mark"))
-	if err != nil {
-		panic(fmt.Errorf("failed to submit transaction asynchronously: %w", err))
-	}
-
-	fmt.Printf("Successfully submitted transaction to transfer ownership from %s to Mark. \n", string(submitResult))
-	fmt.Println("Waiting for transaction commit.")
-
-	if status, err := commit.Status(); err != nil {
-		panic(fmt.Errorf("failed to get commit status: %w", err))
-	} else if !status.Successful {
-		panic(fmt.Errorf("transaction %s failed to commit with status: %d", status.TransactionID, int32(status.Code)))
-	}
-
-	fmt.Printf("*** Transaction committed successfully\n")
-}
-
-// Submit transaction, passing in the wrong number of arguments ,expected to throw an error containing details of any error responses from the smart contract.
-func exampleErrorHandling(contract *client.Contract) {
-	fmt.Println("Submit Transaction: UpdateAsset asset70, asset70 does not exist and should return an error")
-
-	_, err := contract.SubmitTransaction("UpdateAsset")
-	if err != nil {
-		switch err := err.(type) {
-		case *client.EndorseError:
-			fmt.Printf("Endorse error with gRPC status %v: %s\n", status.Code(err), err)
-		case *client.SubmitError:
-			fmt.Printf("Submit error with gRPC status %v: %s\n", status.Code(err), err)
-		case *client.CommitStatusError:
-			if errors.Is(err, context.DeadlineExceeded) {
-				fmt.Printf("Timeout waiting for transaction %s commit status: %s", err.TransactionID, err)
-			} else {
-				fmt.Printf("Error obtaining commit status with gRPC status %v: %s\n", status.Code(err), err)
-			}
-		case *client.CommitError:
-			fmt.Printf("Transaction %s failed to commit with status %d: %s\n", err.TransactionID, int32(err.Code), err)
-		}
-
-		// Any error that originates from a peer or orderer node external to the gateway will have its details
-		// embedded within the gRPC status error. The following code shows how to extract that.
-		statusErr := status.Convert(err)
-		for _, detail := range statusErr.Details() {
-			switch detail := detail.(type) {
-			case *gateway.ErrorDetail:
-				fmt.Printf("Error from endpoint: %s, mspId: %s, message: %s\n", detail.Address, detail.MspId, detail.Message)
-			}
-		}
-	}
-} */
 
 // Format JSON data
 func formatJSON(data []byte) string {
