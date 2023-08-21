@@ -1,19 +1,23 @@
-# hyper-health
+# Hyper-health
 
 This repository houses the components of my software engineering thesis project completed at the University of Scranton in May of 2023. 
 
-# disclaimer:
+# Disclaimer:
 This system is meant to serve as proof that a blockchain environment could be used to mediate electronic health record (EHR) transactions and store/retrieve the data resulting from these transactions, in a timely manner. Some elements of the system (specifically smart contract functions) are on par with a production system of this nature but as a whole, it lacks crucial functionalities that would enable deployment in a real-world environment. For more information about the system's limitations and implementation details, follow the link below to read the docs.
 
 Documentation: https://digitalservices.scranton.edu/digital/collection/p15111coll1/id/1372/rec/1
 
-# components
+# Components
 
 Application Gateway - The gateway server is a rest-api that receives transaction requests from client applications and broadcasts them to Hyperledger Fabric's test network (specifically the network's gateway peer) for evaluation. The layer of abstraction between gateway applications and Fabric networks enables the development of separate services (in multiple languages), that submit the same set of transactions. To demonstrate this, along with a go gateway server (application-gateway-go) and client apps that use RSA Public Key Infrastructure (PKI) to verify user identities, I developed a simple Java gateway application to test transaction interoperability.
 
 Chaincode - Hyperledger Fabric packages smart contracts within chaincodes that can be deployed to Fabric nodes (docker conatainers) that evaluate transactions. Both versions of the smart contracts used in this projects are written in go. The only differece being that signature validation was removed from one version given I did not have time to implement a PKI in Java when conducting my interoperability test.
 
-  Chaincode Functions:
+Go Key Utilities - Used by go patient/provider clients to generate RSA public/private keys and sign transactions.
+
+XACML Engine - Updated https://github.com/murphysean XACML Engine to use go mod instead of go path. The engine is used to evaluate record requests on the Fabric network.
+
+# Chaincode Functions:
 
    Create Policy - This function is used when a patient user initially registers with the system. The policy stored in the patient client application is submitted to the network and stored on its ledger for use in record requests.
 
@@ -33,6 +37,3 @@ Chaincode - Hyperledger Fabric packages smart contracts within chaincodes that c
 
    Verify Signature - Used by every smart contract function besides register to verify transaction signatures.
 
-Go Key Utilities - Used by go patient/provider clients to generate RSA public/private keys and sign transactions.
-
-XACML Engine - Updated https://github.com/murphysean XACML Engine to use go mod instead of go path. The engine is used to evaluate record requests on the Fabric network.
