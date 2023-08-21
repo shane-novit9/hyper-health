@@ -2,7 +2,7 @@
 
 This repository houses the components of my software engineering thesis project completed at the University of Scranton in May of 2023. 
 
-# Disclaimer:
+# Disclaimer
 This system is meant to serve as proof that a blockchain environment could be used to mediate electronic health record (EHR) transactions and store/retrieve the data resulting from these transactions, in a timely manner. Some elements of the system (specifically smart contract functions) are on par with a production system of this nature but as a whole, it lacks crucial functionalities that would enable deployment in a real-world environment. For more information about the system's limitations and implementation details, follow the link below to read the docs.
 
 Documentation: https://digitalservices.scranton.edu/digital/collection/p15111coll1/id/1372/rec/1
@@ -17,7 +17,7 @@ Go Key Utilities - Used by go patient/provider clients to generate RSA public/pr
 
 XACML Engine - Updated https://github.com/murphysean XACML Engine to use go mod instead of go path. The engine is used to evaluate record requests on the Fabric network.
 
-# Chaincode Functions:
+# Chaincode Functions
 
    Create Policy - This function is used when a patient user initially registers with the system. The policy stored in the patient client application is submitted to the network and stored on its ledger for use in record requests.
 
